@@ -11,7 +11,7 @@
  * a single article at a time.
  */
 
-const { newPage, closePage } = require('./browser');
+const { newArticlePage, closeArticlePage } = require('./browser');
 const { extractPublishDate } = require('../parser/dateParser');
 const log = require('../output/logger');
 
@@ -50,7 +50,7 @@ async function fetchArticle(url) {
   while (attempt < maxAttempts) {
     let page;
     try {
-      page = await newPage();
+      page = await newArticlePage();
       page.setDefaultTimeout(PAGE_TIMEOUT);
 
       await page.goto(url, {
@@ -78,7 +78,7 @@ async function fetchArticle(url) {
         return { finalUrl: url, publishDate: null };
       }
     } finally {
-      if (page) await closePage(page);
+      if (page) await closeArticlePage(page);
     }
   }
 

@@ -100,10 +100,19 @@ function normalizeUrl(url) {
  */
 function extractHostname(url) {
   if (!url) return '';
+  const candidate = String(url).trim();
+
+  // Accept pure hostname strings such as "vnexpress.net" or "congly.vn".
+  if (!candidate.includes('://')) {
+    const host = candidate.replace(/^www\./i, '');
+    if (/^[a-z0-9-]+(?:\.[a-z0-9-]+)+$/i.test(host)) {
+      return host.toLowerCase();
+    }
+  }
+
   try {
-    const u = new URL(url);
-    // Strip leading "www." so "www.vnexpress.net" → "vnexpress.net"
-    return u.hostname.replace(/^www\./, '');
+    const u = new URL(candidate);
+    return u.hostname.replace(/^www\./i, '').toLowerCase();
   } catch (_) {
     return '';
   }

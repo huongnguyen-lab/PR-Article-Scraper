@@ -115,12 +115,19 @@ async function main() {
           try {
             const { finalUrl, publishDate } = await fetchArticle(card.url);
 
+            // publisherDomain: ưu tiên dùng domain từ card nếu trông như domain
+            // (có dấu chấm), fallback về hostname của finalUrl
+            const rawDomain = card.publisherDomain || '';
+            const publisherDomain = /\.[a-z]{2,}$/i.test(rawDomain)
+              ? rawDomain.replace(/^www\./i, '').toLowerCase()
+              : extractHostname(finalUrl);
+
             const row = {
               brand,
-              article_title:    card.title,
-              article_url:      finalUrl,
-              publisher_domain:   card.publisherDomain || extractHostname(finalUrl),
-              publisher_homepage: buildHomepage(card.publisherDomain || extractHostname(finalUrl)),
+              article_title:      card.title,
+              article_url:        finalUrl,
+              publisher_domain:   publisherDomain,
+              publisher_homepage: buildHomepage(publisherDomain),
               publish_date:       formatDateVN(publishDate),
             };
 
@@ -130,8 +137,7 @@ async function main() {
             return true;
           } catch (err) {
             log.error(card.url, err.message);
-            brandErrors++;
-            totalErrors++;
+            brandErrors++; // totalErrors sẽ cộng qua brandErrors ở cuối vòng brand
             return false;
           }
         })

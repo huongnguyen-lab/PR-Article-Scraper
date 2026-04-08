@@ -1,33 +1,28 @@
 'use strict';
 
 /**
- * Google Search → News tab (Past week) → article card extraction.
+ * Google Search → News (Past week) → article card extraction.
  *
- * Thay vì click qua UI (Tools → dropdown → Past week) — dễ bị Google
- * thay đổi HTML phá vỡ — ta dùng URL param trực tiếp:
- *
- *   https://www.google.com/search?q=QUERY&tbm=nws&tbs=qdr:w
- *     tbm=nws   → tab News
- *     tbs=qdr:w → Past week
- *
- * Flow:
- *   1. Mở google.com → accept consent nếu có
- *   2. Navigate thẳng đến URL search với filter đã nhúng
- *   3. Kiểm tra CAPTCHA
- *   4. Extract article cards
+ * Chiến lược chống CAPTCHA:
+ *   1. Dùng 1 tab Google DUY NHẤT (getGooglePage) tái sử dụng qua mọi query
+ *      → cookies/session được giữ → Google không thấy "người lạ" mỗi lần
+ *   2. Gõ query vào search box thay vì navigate thẳng URL
+ *      → hành vi giống người dùng thật hơn
+ *   3. Filter Past week qua URL param tbs=qdr:w (sau khi đã ở trang kết quả)
+ *      → chắc chắn hơn click UI
+ *   4. Random delay giữa các thao tác
  */
 
-const { newPage, closePage } = require('./browser');
+const { getGooglePage, saveGoogleSession } = require('./browser');
 const { resolveGoogleRedirect, extractHostname } = require('../parser/urlParser');
 const log = require('../output/logger');
 
-// ─── Timing helpers ──────────────────────────────────────────────────────────
+// ─── Timing ───────────────────────────────────────────────────────────────────
 
 function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
-
-function randomDelay(min = 800, max = 2000) {
+function sleep(min = 800, max = 2000) {
   return new Promise((r) => setTimeout(r, randInt(min, max)));
 }
 
@@ -35,15 +30,14 @@ function randomDelay(min = 800, max = 2000) {
 
 async function acceptConsent(page) {
   const selectors = [
-    '#L2AGLb',                              // id phổ biến nhất
+    '#L2AGLb',
     'button:has-text("Accept all")',
     'button:has-text("Chấp nhận tất cả")',
     'button:has-text("Agree")',
     'button:has-text("Đồng ý")',
     '[aria-label="Accept all"]',
-    'form[action*="consent"] button',       // consent.google.com form
+    'form[action*="consent"] button',
   ];
-
   for (const sel of selectors) {
     try {
       const btn = await page.$(sel);
@@ -60,76 +54,43 @@ async function acceptConsent(page) {
 // ─── CAPTCHA detection ────────────────────────────────────────────────────────
 
 async function checkForCaptcha(page) {
-  const CAPTCHA_PAUSE_MS = parseInt(process.env.CAPTCHA_PAUSE_MS || '30000', 10);
-
+  const PAUSE = parseInt(process.env.CAPTCHA_PAUSE_MS || '30000', 10);
   const text = await page
     .evaluate(() => (document.title + ' ' + (document.body?.innerText || '')).toLowerCase())
     .catch(() => '');
 
-  const isCaptcha = /unusual traffic|captcha|i'm not a robot|xác minh bạn không phải robot/.test(text);
-
-  if (isCaptcha) {
-    log.captcha(CAPTCHA_PAUSE_MS);
-    await new Promise((r) => setTimeout(r, CAPTCHA_PAUSE_MS));
+  if (/unusual traffic|captcha|i'm not a robot|xác minh bạn không phải robot/.test(text)) {
+    log.captcha(PAUSE);
+    // Trong headful mode: dừng để user giải CAPTCHA tay
+    await new Promise((r) => setTimeout(r, PAUSE));
     return true;
   }
   return false;
 }
 
-// ─── Article card extraction ──────────────────────────────────────────────────
+// ─── Card extraction ──────────────────────────────────────────────────────────
 
-/**
- * Extract article cards từ Google News results page.
- *
- * Google thay đổi HTML thường xuyên nên dùng nhiều strategy:
- *
- * Strategy 1 – Tìm theo cấu trúc card hiện đại (2024–2026):
- *   Mỗi card News là một <div> chứa:
- *   - <a href="..."> bao quanh headline (có thể là Google redirect)
- *   - <div> hoặc <span> chứa tên publisher
- *
- * Strategy 2 – Fallback: lấy tất cả link ngoài trong #search,
- *   lọc bằng heuristic (có title đủ dài, không phải link Google).
- *
- * @param {import('playwright').Page} page
- * @returns {Promise<Array<{title:string, url:string, publisherDomain:string}>>}
- */
 async function extractArticleCards(page) {
-  await randomDelay(800, 1500); // chờ lazy-load xong
+  await sleep(800, 1500);
 
   let results = [];
 
-  // ── Strategy 1: Modern Google News card structure ─────────────────────────
+  // Strategy 1: đọc DOM trong page context
   try {
-    results = await page.evaluate(() => {
-      /**
-       * Trong Google News results hiện tại (2024–2026), mỗi bài báo thường
-       * nằm trong một block có data-hveid hoặc data-ved, chứa:
-       *   - <a role="heading"> hoặc <a> bao quanh text headline
-       *   - Gần đó có span/div chứa tên nguồn (publisher)
-       *
-       * Ta tìm tất cả <a> có href trỏ ra ngoài Google, rồi với mỗi link:
-       *   - Lấy text của nó làm title (nếu đủ dài)
-       *   - Leo lên DOM để tìm publisher name trong cùng card container
-       */
-
-      // Helper: leo lên tối đa N cấp để tìm container card
+    const raw = await page.evaluate(() => {
       function findCardContainer(el, maxLevels = 8) {
         let node = el;
         for (let i = 0; i < maxLevels; i++) {
           if (!node.parentElement) break;
           node = node.parentElement;
-          // Dấu hiệu container: có data-hveid, data-ved, hoặc role=article
           if (
             node.hasAttribute('data-hveid') ||
             node.hasAttribute('data-ved') ||
             node.getAttribute('role') === 'article' ||
             node.tagName === 'ARTICLE'
-          ) {
-            return node;
-          }
+          ) return node;
         }
-        // Fallback: trả về 5 cấp cha
+        // fallback: 5 cấp cha
         node = el;
         for (let i = 0; i < 5; i++) {
           if (!node.parentElement) break;
@@ -138,25 +99,20 @@ async function extractArticleCards(page) {
         return node;
       }
 
-      // Helper: tìm publisher name trong container
       function findPublisher(container) {
-        // Thứ tự ưu tiên các selector publisher phổ biến
-        const publisherSelectors = [
-          '[data-ved] span',            // Google thường đặt source ở đây
-          'cite',                       // semantic HTML
+        const selectors = [
+          'cite',
+          '[data-ved] span',
           'span[class*="source"]',
           'span[class*="Source"]',
-          // Class names cụ thể (có thể thay đổi theo thời gian)
           '.NUnG9d', '.vr1PYe', '.VkSnBd', '.TbwUpd',
           '[data-n-tid]',
           'span[jsname]',
         ];
-
-        for (const sel of publisherSelectors) {
+        for (const sel of selectors) {
           try {
             const el = container.querySelector(sel);
             if (el) {
-              // Xoá phần "· X giờ trước" nếu có
               const text = el.textContent?.trim().split('·')[0].trim();
               if (text && text.length > 0 && text.length < 80) return text;
             }
@@ -167,15 +123,10 @@ async function extractArticleCards(page) {
 
       const seen = new Set();
       const items = [];
+      const root = document.querySelector('#search') || document.body;
 
-      // Lấy tất cả <a> trong vùng kết quả (#search hoặc toàn trang)
-      const searchRoot = document.querySelector('#search') || document.body;
-      const anchors = Array.from(searchRoot.querySelectorAll('a[href]'));
-
-      for (const a of anchors) {
+      for (const a of root.querySelectorAll('a[href]')) {
         const href = a.href || '';
-
-        // Bỏ qua: link Google nội bộ, anchor, javascript:, đã thấy
         if (
           !href ||
           href.startsWith('#') ||
@@ -184,60 +135,38 @@ async function extractArticleCards(page) {
           seen.has(href)
         ) continue;
 
-        // Title: dùng text của thẻ <a>, hoặc aria-label
-        const rawTitle = (a.textContent || a.getAttribute('aria-label') || '').trim();
-        // Bỏ link không phải headline (nav, icon, nút, v.v.)
-        if (!rawTitle || rawTitle.length < 15) continue;
+        const title = (a.textContent || a.getAttribute('aria-label') || '').trim();
+        if (!title || title.length < 15) continue;
 
         seen.add(href);
-
         const container = findCardContainer(a);
-        const publisher = findPublisher(container);
-
-        items.push({ title: rawTitle, href, publisher });
+        items.push({ title, href, publisher: findPublisher(container) });
       }
-
       return items;
     });
 
-    // Resolve Google redirect URLs và lọc lại
-    const resolved = [];
-    for (const { title, href, publisher } of results) {
+    for (const { title, href, publisher } of raw) {
       const url = resolveGoogleRedirect(href);
       if (!url || url.startsWith('https://www.google.com')) continue;
-
       const publisherDomain = publisher
         ? publisher.split('·')[0].trim()
         : extractHostname(url);
-
-      resolved.push({ title, url, publisherDomain });
+      results.push({ title, url, publisherDomain });
     }
-    results = resolved;
-
   } catch (err) {
     log.warn(`Card extraction strategy 1 failed: ${err.message}`);
-    results = [];
   }
 
-  // ── Strategy 2: Fallback nếu Strategy 1 không tìm được gì ────────────────
+  // Strategy 2: fallback
   if (results.length === 0) {
-    log.warn('Strategy 1 got 0 results, trying fallback strategy 2...');
+    log.warn('Strategy 1 got 0 results, trying fallback...');
     try {
       const links = await page.$$eval(
-        // Lấy link ngoài Google, bỏ qua anchor và javascript:
         '#search a[href]:not([href^="#"]):not([href^="javascript"])',
-        (anchors) =>
-          anchors
-            .filter((a) => {
-              const h = a.href || '';
-              return h && !/google\.(com|vn)\/(?!url\?q=)/.test(h);
-            })
-            .map((a) => ({
-              title: (a.textContent || '').trim(),
-              href: a.href || '',
-            }))
+        (as) => as
+          .filter((a) => a.href && !/google\.(com|vn)\/(?!url\?q=)/.test(a.href))
+          .map((a) => ({ title: (a.textContent || '').trim(), href: a.href }))
       );
-
       const seen = new Set();
       for (const { title, href } of links) {
         if (!title || title.length < 20) continue;
@@ -254,90 +183,94 @@ async function extractArticleCards(page) {
   return results;
 }
 
-// ─── Main export ─────────────────────────────────────────────────────────────
+// ─── Main ─────────────────────────────────────────────────────────────────────
 
 /**
- * Tìm kiếm Google News với filter Past week và trả về danh sách article cards.
+ * Chạy một Google News query và trả về danh sách article cards.
  *
- * Dùng URL param thay vì click UI:
- *   tbm=nws   → tab News
- *   tbs=qdr:w → Past week
- *
- * @param {string} brand
- * @param {string} query
- * @returns {Promise<Array<{title:string, url:string, publisherDomain:string}>>}
+ * Dùng tab tái sử dụng (getGooglePage) nên cookies/session được giữ qua
+ * mọi query → ít CAPTCHA hơn nhiều so với mở tab mới mỗi lần.
  */
 async function searchGoogleNews(brand, query) {
   const PAGE_TIMEOUT = parseInt(process.env.PAGE_TIMEOUT || '30000', 10);
-  let page;
+
+  log.start(brand, query);
+
+  // Lấy tab Google dùng chung (tạo mới nếu lần đầu, tái dùng nếu đã có)
+  const page = await getGooglePage();
+  page.setDefaultTimeout(PAGE_TIMEOUT);
 
   try {
-    page = await newPage();
-    page.setDefaultTimeout(PAGE_TIMEOUT);
+    // ── Bước 1: Đảm bảo đang ở google.com, accept consent nếu cần ──────────
+    const currentUrl = page.url();
+    if (!currentUrl.includes('google.com')) {
+      await page.goto('https://www.google.com', {
+        waitUntil: 'domcontentloaded',
+        timeout: PAGE_TIMEOUT,
+      });
+      await acceptConsent(page);
+      await sleep(800, 1500);
+    }
 
-    log.start(brand, query);
+    // ── Bước 2: Xoá search box và gõ query (giống người dùng thật) ──────────
+    const searchBox = page.locator('textarea[name="q"], input[name="q"]').first();
 
-    // ── Bước 1: Ghé google.com trước để accept consent nếu có ───────────────
-    // (Consent chỉ xuất hiện lần đầu, nhưng vẫn xử lý mỗi lần để chắc chắn)
-    await page.goto('https://www.google.com', {
-      waitUntil: 'domcontentloaded',
-      timeout: PAGE_TIMEOUT,
-    });
-    await acceptConsent(page);
-    await randomDelay(500, 1000);
+    // Nếu đang ở trang kết quả trước → click vào search box để focus
+    try {
+      await searchBox.click({ timeout: 3000 });
+    } catch (_) {
+      // Nếu không có search box (trang chủ ẩn) → navigate về trang chủ
+      await page.goto('https://www.google.com', { waitUntil: 'domcontentloaded', timeout: PAGE_TIMEOUT });
+      await acceptConsent(page);
+      await sleep(500, 1000);
+    }
 
-    // ── Bước 2: Navigate thẳng đến News + Past week qua URL params ──────────
-    //   tbm=nws   = tab News (thay cho click "Tin tức")
-    //   tbs=qdr:w = Past week (thay cho click Tools → dropdown → Tuần qua)
-    //   hl=vi     = giao diện tiếng Việt (không ảnh hưởng đến filter)
-    //   gl=vn     = kết quả từ Việt Nam
-    const encodedQuery = encodeURIComponent(query);
-    const searchUrl = `https://www.google.com/search?q=${encodedQuery}&tbm=nws&tbs=qdr:w&hl=vi&gl=vn`;
+    await searchBox.fill(''); // xoá query cũ
+    await sleep(200, 500);
 
-    log.info(`Navigating: ${searchUrl}`);
+    // Gõ từng ký tự với delay ngẫu nhiên → trông như người thật gõ
+    await searchBox.pressSequentially(query, { delay: randInt(50, 120) });
+    await sleep(400, 800);
+    await searchBox.press('Enter');
+    await page.waitForLoadState('domcontentloaded', { timeout: PAGE_TIMEOUT });
+    await sleep(1000, 2000);
 
-    await page.goto(searchUrl, {
-      waitUntil: 'domcontentloaded',
-      timeout: PAGE_TIMEOUT,
-    });
-    await randomDelay(1000, 2000);
-
-    // ── Bước 3: Kiểm tra CAPTCHA ─────────────────────────────────────────────
     if (await checkForCaptcha(page)) {
-      // Sau khi pause, thử lại một lần
       if (await checkForCaptcha(page)) {
-        log.warn(`Aborting query "${query}" due to persistent CAPTCHA.`);
+        log.warn(`Aborting query "${query}" — CAPTCHA không giải được.`);
         return [];
       }
     }
 
-    // ── Bước 4: Kiểm tra có vào đúng tab News chưa ───────────────────────────
-    // URL sau navigate phải chứa tbm=nws; nếu không, Google redirect về All
-    const currentUrl = page.url();
-    if (!currentUrl.includes('tbm=nws')) {
-      log.warn(`Not on News tab after navigation (url=${currentUrl}); retrying with tbm=nws appended.`);
-      const fallbackUrl = currentUrl.includes('?')
-        ? `${currentUrl}&tbm=nws&tbs=qdr:w`
-        : `${currentUrl}?tbm=nws&tbs=qdr:w`;
-      await page.goto(fallbackUrl, { waitUntil: 'domcontentloaded', timeout: PAGE_TIMEOUT });
-      await randomDelay(1000, 2000);
-    }
+    // ── Bước 3: Chuyển sang tab News + filter Past week qua URL param ────────
+    // Lấy URL hiện tại rồi inject tbm=nws và tbs=qdr:w
+    const afterSearch = new URL(page.url());
+    afterSearch.searchParams.set('tbm', 'nws');
+    afterSearch.searchParams.set('tbs', 'qdr:w');
 
-    // ── Bước 5: Extract article cards ────────────────────────────────────────
+    await page.goto(afterSearch.toString(), {
+      waitUntil: 'domcontentloaded',
+      timeout: PAGE_TIMEOUT,
+    });
+    await sleep(1000, 2000);
+
+    if (await checkForCaptcha(page)) return [];
+
+    // ── Bước 4: Extract cards ─────────────────────────────────────────────────
     const cards = await extractArticleCards(page);
 
     log.found(cards.length, query);
-    if (cards.length === 0) {
-      log.warn(`Query "${query}" returned 0 results.`);
-    }
+    if (cards.length === 0) log.warn(`Query "${query}" returned 0 results.`);
+
+    // Lưu cookies sau mỗi search thành công → giảm CAPTCHA lần sau
+    await saveGoogleSession();
 
     return cards;
 
   } catch (err) {
-    log.warn(`searchGoogleNews failed for query "${query}": ${err.message}`);
+    log.warn(`searchGoogleNews failed for "${query}": ${err.message}`);
     return [];
-  } finally {
-    if (page) await closePage(page);
+    // Không đóng page — tab dùng chung, chỉ đóng khi closeBrowser()
   }
 }
 

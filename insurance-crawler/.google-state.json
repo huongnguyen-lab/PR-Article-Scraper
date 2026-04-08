@@ -1,0 +1,85 @@
+{
+  "cookies": [
+    {
+      "name": "_GRECAPTCHA",
+      "value": "09AKhCRwidpV_hHqoxeaLt6R6LkAlPYuWj9T6UuI26Gw83cFbXxZWb-N1VYkWyZs7OnZocH2usLCPqRhOVmoxytRk",
+      "domain": "www.google.com",
+      "path": "/recaptcha",
+      "expires": 1791175115.414777,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "SNID",
+      "value": "ABDP0S28CmF8wD3JP1xGs020kz7vVgtAoZ3tSHB_AROk7p7VLrWesVaVWiDS4gx7ToNig45MK3bdex7cK5Kgdn2If8krHY3nDw",
+      "domain": ".google.com",
+      "path": "/verify",
+      "expires": 1791434291.572366,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "AEC",
+      "value": "AaJma5vr4qW3XuqZ46x1J-AupQsLObaG8xhkA1jWKTaTM1n_tbO6YDeYEg",
+      "domain": ".google.com",
+      "path": "/",
+      "expires": 1791175091.131324,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "NID",
+      "value": "530=Ifg4sNLbwVzVaYsoIN7-aoXfLxhwcolFAsVugzXbrrD1SgqIupqbhApcjFkSEeiaO21UEDJki_ysTfUnwnu2ckVpTj8tfXJMomYaLFg30d2VyBEbjg2SwHJPeT17p9kvt62ZT9WXoGAdgChxFoaJKHSWf4yMr9_ux-0_kQ55AcP5igsuBzzEs0QJPq4sNsbwzjucI02lnq7JhddYieCxsr8AM4I6V4_OEv38t8w8pkqaZJeHbVKfbLU",
+      "domain": ".google.com",
+      "path": "/",
+      "expires": 1791434291.599305,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "__Secure-STRP",
+      "value": "AEEP7gKR0WyRiyTo_8126hC04g4Jx9qUzUk83PMKh4BgAXbfN3MBAOans4RBHMyYnKn4xOWRInrN-pB7Il0nayGbPR3wjPL_E_6t",
+      "domain": ".google.com",
+      "path": "/",
+      "expires": 1775623491.761423,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "Strict"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "https://www.google.com",
+      "localStorage": [
+        {
+          "name": "sb_wiz.zpc.gws-wiz.",
+          "value": "{\"0\":[[\"tiger woods\",46,[3,362,143],{\"lm\":[],\"zf\":33,\"zh\":\"Tiger Woods\",\"zi\":\"Vận động viên\",\"zl\":8,\"zp\":{\"gs_ssp\":\"eJzj4tDP1TdIKk_JM2D04i7JTE8tUijPz08pBgBVowem\"},\"zs\":\"data:image/jpeg;base64,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\"}],[\"review phim song hỷ lâm nguy\",0,[3,362,143],{\"zf\":33,\"zl\":8,\"zp\":{\"gs_ss\":\"1\"}}],[\"xe buýt tphcm\",0,[3,362,143],{\"zf\":33,\"zl\":8,\"zp\":{\"gs_ss\":\"1\"}}],[\"dự báo thời tiết\",0,[3,362,143],{\"zf\":33,\"zl\":8,\"zp\":{\"gs_ss\":\"1\"}}],[\"pakistan\",46,[3,362,143],{\"lm\":[],\"zf\":33,\"zh\":\"Pakistan\",\"zi\":\"Quốc gia ở Nam Á\",\"zl\":8,\"zp\":{\"gs_ssp\":\"eJzj4tDP1TcwLU4yNGD04ihIzM4sLknMAwA6RgYn\"},\"zs\":\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAAA1CAMAAADh9px2AAAAb1BMVEUBQRz///8AMgAALQAAPxkANgAAJwAAOAYALwAAPRUAPBKuubEAKQCOnpJFZE4ANAAiTi8AIwDr7uxSbVmfq6LR1tJzh3iElYkAOQwRRSNnfW33+PcrUzeXpZsAHAAAIADFzMe5wbs7XUVbdWLf5OFIYRlpAAABsElEQVRYhe2W25KDIAyGDeCRej5W6662vv8zLuKMVcEVrRc7s+bK+YXPJJIQDSSGtA/sAl7A/w4kzqlAgu6ZfSLQ1GmkkfOAuITKnzi4jlYDGgnAY5JCEhQfAQ0KUE9VEqShRnT9IBC5ABWeSRjoF6qphKgAdDymJf5M+66gAbhLUqkANCKmBdMjY4ZxxTR3/hFVoJkzKTKmkhvxdfGxHHIHm5kW5y1HPiX/ehNo9xlcpNA2wxpSN62eYu1sAvWkl9xFdCwPAbJwcMBDK+2legEsMrrSQjaBt0gMmQX9XKu+bSCXGmuxz16r5k0g5lIVruw/6iF4St1VCTgcYrqM+TBw+MsARKW7qgCHcwjQ3k4CDpXC7CWr3APAoZZ7e0gqlwi1tw3k3WYgCj4WwWtJ3Aa+XYTSmG0n2OuEAlQAOt74pgnwGLdjFVRyPBWA/E4ZkaWFLd9H+Ba3rAmJHUIFyG+9t3UNpW3XP1FD4O24l0VLJLwdk4NgJRbX7Zpt5ouobsp4e6Yvx+3GNLoOOtpgJ0gdIy/L88xDWF9tFTuAvdmFaRa/jok7gdt2AS/gHwD+ACDLE4wIx5VQAAAAAElFTkSuQmCC\"}],[\"google ai edge eloquent\",0,[3,362,143],{\"zf\":33,\"zl\":8,\"zp\":{\"gs_ss\":\"1\"}}],[\"bảo trợ xã hội\",0,[3,362,143],{\"zf\":33,\"zl\":8,\"zp\":{\"gs_ss\":\"1\"}}],[\"ngược đường ngược nắng tập 5\",0,[3,362,143],{\"zf\":33,\"zl\":8,\"zp\":{\"gs_ss\":\"1\"}}],[\"congo world cup\",0,[3,362,143],{\"zf\":33,\"zl\":8,\"zp\":{\"gs_ss\":\"1\"}}],[\"bánh trứng kiến dị ứng\",0,[3,362,143],{\"zf\":33,\"zl\":8,\"zp\":{\"gs_ss\":\"1\"}}]],\"1\":{\"ag\":{\"a\":{\"8\":[\"Nội dung tìm kiếm thịnh hành\"]}},\"av\":\"7603683085916668744\",\"q\":\"t5JMk_pvbNNOOVLOUO8v0NtXQj0\"}}"
+        },
+        {
+          "name": "sb_wiz.pq_tm_hp",
+          "value": "1775623195811"
+        },
+        {
+          "name": "rc::f",
+          "value": "0aAD1zX5GokmUgjyrn7eSZUfYWaottjIIpyjFQZoSsXRIBt2cxWj2npELwOA7v6h1FlOgEX4M"
+        },
+        {
+          "name": "sb_wiz.pq",
+          "value": "Dai-ichi Life Việt Nam"
+        },
+        {
+          "name": "rc::a",
+          "value": "MXZ6ZmpjMTE5bHpxeXo="
+        },
+        {
+          "name": "sb_wiz.qc",
+          "value": "7"
+        }
+      ]
+    }
+  ]
+}

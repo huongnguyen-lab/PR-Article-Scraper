@@ -7,11 +7,11 @@
  * opened in Microsoft Excel on Windows.
  *
  * Column order (fixed):
- *   brand | article_title | article_url | publisher_domain | publish_date
+ *   brand | article_title | article_url | publisher_domain | publisher_homepage | publish_date
  *
  * Usage:
  *   const writer = createCsvWriter(filePath);
- *   await writer.writeRow({ brand, article_title, article_url, publisher_domain, publish_date });
+ *   await writer.writeRow({ brand, article_title, article_url, publisher_domain, publisher_homepage, publish_date });
  *   // …repeat for each article…
  *   await writer.finalize(); // flushes and closes the stream
  */
@@ -103,16 +103,24 @@ function createCsvWriter(filePath) {
         return;
       }
       const line = rowToCsvLine(row) + '\n';
-      const ok = stream.write(line, 'utf8', (err) => {
+
+      // Back-pressure: nếu write() trả về false (buffer đầy), đợi 'drain'
+      // rồi mới resolve — tránh gọi resolve() 2 lần.
+      const flushed = stream.write(line, 'utf8', (err) => {
         if (err) reject(err);
-        else {
+      });
+
+      if (flushed) {
+        // Buffer chưa đầy: ghi xong ngay
+        rowsWritten++;
+        resolve();
+      } else {
+        // Buffer đầy: chờ drain rồi mới tiếp
+        stream.once('drain', () => {
           rowsWritten++;
           resolve();
-        }
-      });
-      // Back-pressure: if write returns false, wait for 'drain' before resolving
-      if (!ok) {
-        stream.once('drain', resolve);
+        });
+        stream.once('error', reject);
       }
     });
   }
