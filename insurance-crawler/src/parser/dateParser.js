@@ -34,10 +34,19 @@ function parseToISO(raw) {
   const trimmed = raw.trim();
   if (!trimmed) return null;
 
+  // DD/MM/YYYY or DD-MM-YYYY should be handled before native Date parsing
+  // because JavaScript often interprets slash dates as MM/DD/YYYY.
+  const dmyMatch = trimmed.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (dmyMatch) {
+    const [, dd, mm, yyyy] = dmyMatch;
+    const d = new Date(`${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}T00:00:00Z`);
+    if (!isNaN(d.getTime())) return d.toISOString();
+  }
+
   // Direct ISO / RFC parse (handles 2024-03-15T10:00:00+07:00 etc.)
-  const d = new Date(trimmed);
-  if (!isNaN(d.getTime())) {
-    return d.toISOString();
+  const nativeDate = new Date(trimmed);
+  if (!isNaN(nativeDate.getTime())) {
+    return nativeDate.toISOString();
   }
 
   // Vietnamese date: "ngày 15 tháng 3 năm 2024"
@@ -51,9 +60,9 @@ function parseToISO(raw) {
   }
 
   // DD/MM/YYYY or DD-MM-YYYY
-  const dmyMatch = trimmed.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
-  if (dmyMatch) {
-    const [, dd, mm, yyyy] = dmyMatch;
+  const dmyEmbeddedMatch = trimmed.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (dmyEmbeddedMatch) {
+    const [, dd, mm, yyyy] = dmyEmbeddedMatch;
     const d3 = new Date(`${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}T00:00:00Z`);
     if (!isNaN(d3.getTime())) return d3.toISOString();
   }

@@ -24,7 +24,7 @@ const BRANDS = [
     aliases: ['Chubb Life Việt Nam', 'Chubb Life VN', 'Chubb Life'],
     queries: [
       'Chubb Life Việt Nam',
-      '"Chubb Life"',    ],
+      '"Chubb Life Viet Nam"',    ],
   },
   {
     brand: 'FWD Việt Nam',

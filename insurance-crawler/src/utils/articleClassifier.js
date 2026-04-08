@@ -421,7 +421,16 @@ function buildIrrelevantResult(reason, source = 'rules') {
 }
 
 function applyFallback(ruleDecision, targetBrandDef, config) {
+  const hasTargetSignal = ruleDecision.matched_brand === targetBrandDef.brand || ruleDecision.is_target_brand;
+
   if (config.reviewFallback === 'accept') {
+    if (!hasTargetSignal) {
+      return {
+        ...buildIrrelevantResult(`Fallback reject: no reliable target-brand signal. ${ruleDecision.reason}`, 'fallback'),
+        is_insurance_topic: true,
+      };
+    }
+
     return {
       ...ruleDecision,
       status: 'relevant',

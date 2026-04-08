@@ -39,12 +39,24 @@ const log = require('./output/logger');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+const BLOCKED_PUBLISHER_DOMAINS = new Set([
+  'facebook.com',
+  'm.facebook.com',
+  'tin.skydoor.net',
+  'www.facebook.com',
+]);
+
 function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
 function delay(min, max) {
   return new Promise((r) => setTimeout(r, randInt(min, max)));
+}
+
+function isBlockedPublisherDomain(domain) {
+  const hostname = extractHostname(domain);
+  return Boolean(hostname) && BLOCKED_PUBLISHER_DOMAINS.has(hostname);
 }
 
 function parseArgs() {
@@ -104,6 +116,11 @@ async function main() {
       // ── Classify cards before dedupe/write ──────────────────────────────
       const resolvedCards = [];
       for (const card of cards) {
+        if (isBlockedPublisherDomain(card.publisherDomain) || isBlockedPublisherDomain(card.url)) {
+          log.skipBrand(brand, card.title, card.url);
+          continue;
+        }
+
         const classification = await classifyArticle(card, brandDef, BRANDS);
 
         log.classify(
@@ -160,6 +177,11 @@ async function main() {
             const publisherDomain = /\.[a-z]{2,}$/i.test(rawDomain)
               ? rawDomain.replace(/^www\./i, '').toLowerCase()
               : extractHostname(finalUrl);
+
+            if (isBlockedPublisherDomain(publisherDomain) || isBlockedPublisherDomain(finalUrl)) {
+              log.skipBrand(card.resolvedBrand || brand, card.title, finalUrl);
+              return false;
+            }
 
             const row = {
               brand: card.resolvedBrand,
