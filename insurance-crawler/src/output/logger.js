@@ -37,6 +37,24 @@ module.exports = {
     _print('[SKIP]', `Duplicate: ${url}`);
   },
 
+  /** Article skipped because it does not mention the target brand */
+  skipBrand(brand, title, url) {
+    _print('[SKIP_BRAND]', `Brand mismatch for ${brand}: "${title}" | ${url}`);
+  },
+
+  /** Article was found under one brand query but mapped to another brand */
+  reassignBrand(fromBrand, toBrand, title, url) {
+    _print('[REASSIGN_BRAND]', `${fromBrand} -> ${toBrand}: "${title}" | ${url}`);
+  },
+
+  /** Article classification result */
+  classify(decision, source, brand, sentiment, confidence, title, url, reason) {
+    _print(
+      '[CLASSIFY]',
+      `${decision.toUpperCase()} via ${source}${brand ? ` => ${brand}` : ''} | sentiment=${sentiment} | confidence=${confidence}: "${title}" | ${url} | ${reason}`
+    );
+  },
+
   /** About to open an article page */
   fetch(url) {
     _print('[FETCH]', `Opening article: ${url}`);

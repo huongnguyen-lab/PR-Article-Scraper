@@ -31,6 +31,7 @@ const { launchBrowser, closeBrowser } = require('./crawler/browser');
 const { searchGoogleNews } = require('./crawler/google');
 const { fetchArticle } = require('./crawler/article');
 const { isDuplicate, markSeen } = require('./utils/deduper');
+const { classifyArticle } = require('./utils/articleClassifier');
 const { createCsvWriter, buildOutputPath } = require('./output/csvWriter');
 const { extractHostname, buildHomepage } = require('./parser/urlParser');
 const { formatDateVN } = require('./parser/dateParser');
@@ -98,8 +99,40 @@ async function main() {
         continue;
       }
 
-      // ── Filter duplicates ────────────────────────────────────────────────
-      const freshCards = cards.filter((c) => {
+      // ── Classify cards before dedupe/write ──────────────────────────────
+      const resolvedCards = [];
+      for (const card of cards) {
+        const classification = await classifyArticle(card, brandDef, BRANDS);
+
+        log.classify(
+          classification.decision,
+          classification.source,
+          classification.brand,
+          classification.sentiment,
+          classification.confidence,
+          card.title,
+          card.url,
+          classification.reason
+        );
+
+        if (classification.decision === 'reject') {
+          log.skipBrand(brand, card.title, card.url);
+          continue;
+        }
+
+        if (classification.decision === 'reassign' && classification.brand !== brand) {
+          log.reassignBrand(brand, classification.brand, card.title, card.url);
+        }
+
+        resolvedCards.push({
+          ...card,
+          resolvedBrand: classification.brand || brand,
+          classificationSentiment: classification.sentiment || 'neutral',
+          classificationSource: classification.source || 'unknown',
+        });
+      }
+
+      const freshCards = resolvedCards.filter((c) => {
         if (isDuplicate(c.url)) return false;
         markSeen(c.url);
         return true;
@@ -123,12 +156,14 @@ async function main() {
               : extractHostname(finalUrl);
 
             const row = {
-              brand,
+              brand: card.resolvedBrand,
               article_title:      card.title,
               article_url:        finalUrl,
               publisher_domain:   publisherDomain,
               publisher_homepage: buildHomepage(publisherDomain),
               publish_date:       formatDateVN(publishDate),
+              sentiment:          card.classificationSentiment,
+              classification_source: card.classificationSource,
             };
 
             await csv.writeRow(row);

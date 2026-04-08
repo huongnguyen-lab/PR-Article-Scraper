@@ -7,11 +7,11 @@
  * opened in Microsoft Excel on Windows.
  *
  * Column order (fixed):
- *   brand | article_title | article_url | publisher_domain | publisher_homepage | publish_date
+ *   brand | article_title | article_url | publisher_domain | publisher_homepage | publish_date | sentiment | classification_source
  *
  * Usage:
  *   const writer = createCsvWriter(filePath);
- *   await writer.writeRow({ brand, article_title, article_url, publisher_domain, publisher_homepage, publish_date });
+ *   await writer.writeRow({ brand, article_title, article_url, publisher_domain, publisher_homepage, publish_date, sentiment, classification_source });
  *   // …repeat for each article…
  *   await writer.finalize(); // flushes and closes the stream
  */
@@ -31,6 +31,8 @@ const COLUMNS = [
   'publisher_domain',
   'publisher_homepage',   // trang chủ của báo, vd: https://vnexpress.net
   'publish_date',
+  'sentiment',
+  'classification_source',
 ];
 
 /**
@@ -94,6 +96,8 @@ function createCsvWriter(filePath) {
    * @param {string}      row.article_url
    * @param {string}      row.publisher_domain
    * @param {string|null} row.publish_date
+   * @param {string|null} row.sentiment
+   * @param {string|null} row.classification_source
    * @returns {Promise<void>}
    */
   function writeRow(row) {
