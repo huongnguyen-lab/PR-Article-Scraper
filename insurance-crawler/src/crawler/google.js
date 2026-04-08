@@ -243,18 +243,43 @@ async function searchGoogleNews(brand, query) {
     }
 
     // ── Bước 3: Chuyển sang tab News + filter Past week qua URL param ────────
-    // Lấy URL hiện tại rồi inject tbm=nws và tbs=qdr:w
-    const afterSearch = new URL(page.url());
-    afterSearch.searchParams.set('tbm', 'nws');
-    afterSearch.searchParams.set('tbs', 'qdr:w');
+    // Lấy URL hiện tại sau khi search → inject tbm=nws (News) + tbs=qdr:w (Past week)
+    let searchResultUrl;
+    try {
+      searchResultUrl = new URL(page.url());
+    } catch (_) {
+      // Nếu URL không hợp lệ vì lý do nào đó, build lại từ query
+      searchResultUrl = new URL('https://www.google.com/search');
+      searchResultUrl.searchParams.set('q', query);
+    }
+    searchResultUrl.searchParams.set('tbm', 'nws');   // tab News
+    searchResultUrl.searchParams.set('tbs', 'qdr:w'); // Past week
 
-    await page.goto(afterSearch.toString(), {
+    const newsUrl = searchResultUrl.toString();
+    log.info(`Navigating to News+PastWeek: ${newsUrl}`);
+
+    await page.goto(newsUrl, {
       waitUntil: 'domcontentloaded',
       timeout: PAGE_TIMEOUT,
     });
     await sleep(1000, 2000);
 
     if (await checkForCaptcha(page)) return [];
+
+    // Xác nhận đã vào đúng News tab + Past week filter
+    const finalUrl = page.url();
+    const hasNewsTab   = finalUrl.includes('tbm=nws');
+    const hasPastWeek  = finalUrl.includes('tbs=qdr');
+    if (!hasNewsTab || !hasPastWeek) {
+      log.warn(`Filter not applied correctly (url=${finalUrl}). Retrying…`);
+      // Thử lần 2 bằng cách navigate trực tiếp
+      const retryUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}&tbm=nws&tbs=qdr:w&hl=vi&gl=vn`;
+      await page.goto(retryUrl, { waitUntil: 'domcontentloaded', timeout: PAGE_TIMEOUT });
+      await sleep(1000, 2000);
+      if (await checkForCaptcha(page)) return [];
+    } else {
+      log.info(`Filter confirmed: News tab + Past week ✓`);
+    }
 
     // ── Bước 4: Extract cards ─────────────────────────────────────────────────
     const cards = await extractArticleCards(page);

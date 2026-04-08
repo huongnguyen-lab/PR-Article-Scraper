@@ -67,7 +67,9 @@ async function main() {
   const OUTPUT_DIR          = process.env.OUTPUT_DIR || 'output';
 
   // Build output path relative to the project root (one level up from src/)
-  const outputPath = buildOutputPath(path.join(__dirname, '..', OUTPUT_DIR));
+  const outputPath    = buildOutputPath(path.join(__dirname, '..', OUTPUT_DIR));
+  // Thư mục lưu ảnh chụp màn hình bài báo
+  const screenshotDir = path.join(__dirname, '..', OUTPUT_DIR, 'screenshots');
 
   // Initialise incremental CSV writer (creates file + header immediately)
   const csv = createCsvWriter(outputPath);
@@ -146,7 +148,11 @@ async function main() {
       const fetchTasks = freshCards.map((card) =>
         limit(async () => {
           try {
-            const { finalUrl, publishDate } = await fetchArticle(card.url);
+            const { finalUrl, publishDate } = await fetchArticle(card.url, {
+              brand: card.resolvedBrand || brand,
+              publisherDomain: card.publisherDomain || '',
+              screenshotDir,
+            });
 
             // publisherDomain: ưu tiên dùng domain từ card nếu trông như domain
             // (có dấu chấm), fallback về hostname của finalUrl

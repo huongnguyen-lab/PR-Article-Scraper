@@ -3,16 +3,15 @@
 /**
  * Article page scraper.
  *
- * Opens each article URL in a new browser tab, captures the final URL
- * (after any redirects), and extracts the publish_date using the multi-level
- * fallback chain defined in dateParser.js.
+ * Mở từng URL bài báo trong tab mới, lấy final URL sau redirect,
+ * trích xuất publish_date, và chụp màn hình 800×800 px.
  *
- * Concurrency is controlled externally via p-limit; this module only handles
- * a single article at a time.
+ * Concurrency được kiểm soát ở index.js qua p-limit.
  */
 
 const { newArticlePage, closeArticlePage } = require('./browser');
 const { extractPublishDate } = require('../parser/dateParser');
+const { captureArticleScreenshot } = require('../output/screenshotter');
 const log = require('../output/logger');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -28,24 +27,26 @@ function randomDelay(min, max) {
 // ─── Main export ─────────────────────────────────────────────────────────────
 
 /**
- * Fetch an article page and extract its publish_date.
+ * Fetch một article page, trích xuất publish_date, và chụp màn hình.
+ * Retry 1 lần nếu navigation thất bại.
  *
- * Retries once on navigation failure before giving up.
+ * @param {string} url   URL bài báo
+ * @param {object} opts
+ * @param {string}      opts.brand           Tên brand (để đặt tên ảnh)
+ * @param {string}      opts.publisherDomain Domain trang báo (để đặt tên ảnh)
+ * @param {string}      opts.screenshotDir   Thư mục lưu ảnh PNG
  *
- * @param {string} url  The article URL (may redirect)
- * @returns {Promise<{finalUrl: string, publishDate: string|null}>}
- *   finalUrl    – page.url() after navigation (canonical URL)
- *   publishDate – ISO 8601 string, or null if extraction failed
+ * @returns {Promise<{finalUrl:string, publishDate:string|null, screenshotPath:string|null}>}
  */
-async function fetchArticle(url) {
-  const PAGE_TIMEOUT = parseInt(process.env.PAGE_TIMEOUT || '30000', 10);
-  const ARTICLE_DELAY_MIN = parseInt(process.env.ARTICLE_DELAY_MIN || '500', 10);
-  const ARTICLE_DELAY_MAX = parseInt(process.env.ARTICLE_DELAY_MAX || '1500', 10);
+async function fetchArticle(url, { brand = '', publisherDomain = '', screenshotDir = '' } = {}) {
+  const PAGE_TIMEOUT     = parseInt(process.env.PAGE_TIMEOUT      || '30000', 10);
+  const ARTICLE_DELAY_MIN = parseInt(process.env.ARTICLE_DELAY_MIN || '500',   10);
+  const ARTICLE_DELAY_MAX = parseInt(process.env.ARTICLE_DELAY_MAX || '1500',  10);
 
   log.fetch(url);
 
   let attempt = 0;
-  const maxAttempts = 2; // try once, retry once
+  const maxAttempts = 2;
 
   while (attempt < maxAttempts) {
     let page;
@@ -58,16 +59,28 @@ async function fetchArticle(url) {
         timeout: PAGE_TIMEOUT,
       });
 
-      // Capture the final URL after any HTTP or JS redirects
+      // URL thật sau redirect
       const finalUrl = page.url();
 
-      // Extract publish date using cascading fallbacks
+      // Trích xuất ngày đăng (7 fallback strategies)
       const publishDate = await extractPublishDate(page, url);
 
-      // Brief polite delay before the caller opens the next article
+      // Chụp màn hình 800×800 (thấy tiêu đề, tỷ lệ 1:1)
+      let screenshotPath = null;
+      if (screenshotDir) {
+        screenshotPath = await captureArticleScreenshot(page, {
+          brand,
+          publisherDomain,
+          publishDate,
+          articleUrl: finalUrl,
+          screenshotDir,
+        });
+      }
+
       await randomDelay(ARTICLE_DELAY_MIN, ARTICLE_DELAY_MAX);
 
-      return { finalUrl, publishDate };
+      return { finalUrl, publishDate, screenshotPath };
+
     } catch (err) {
       attempt++;
       if (attempt < maxAttempts) {
@@ -75,15 +88,14 @@ async function fetchArticle(url) {
         await randomDelay(1000, 2000);
       } else {
         log.error(url, err.message);
-        return { finalUrl: url, publishDate: null };
+        return { finalUrl: url, publishDate: null, screenshotPath: null };
       }
     } finally {
       if (page) await closeArticlePage(page);
     }
   }
 
-  // Should never reach here, but satisfy the linter
-  return { finalUrl: url, publishDate: null };
+  return { finalUrl: url, publishDate: null, screenshotPath: null };
 }
 
 module.exports = { fetchArticle };
